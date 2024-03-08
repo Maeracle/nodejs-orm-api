@@ -1,70 +1,56 @@
-const express = require('express');
-const router = express.Router();
-const Joi = require('joi');
-const validateRequest = require('_middleware/validate-request');
-const productService = require('./products.service');
+const db = require('_helpers/db');
 
-//routes
+module.exports = {
+    getAll,
+    getById,
+    create,
+    update,
+    delete: _delete
+};
 
-router.get('/', getAll);
-router.get('/:id', getById);
-router.post('/', createSchema, create);
-router.put('/:id', updateSchema, update);
-router.delete('/:id', _delete);
-
-module.exports = router;
-
-// route functions
-
-function getAll(req, res, next) {
-    productService.getAll()
-        .then(product => res.json(product))
-        .catch(next);
+async function getAll() {
+    return await db.User.findAll();
 }
 
-function getById(req, res, next) {
-    productService.getById(req.params.id)
-        .then(product => res.json(product))
-        .catch(next);
+async function getById(id) {
+    return await getProduct(id);
 }
 
-function create(req, res, next) {
-    productService.create(req.body)
-        .then(() => res.json({ message: 'Product created' }))
-        .catch(next);
+async function create(params) {
+    // validate
+    if (await db.User.findOne({ where: { name: params.name} })) {
+        throw 'Name"' + params.name + '" is already registered';
+    }
+
+    const product = new db.User(params);
+
+    // save user
+    await product.save();
 }
 
-function update(req, res, next) {
-    productService.update(req.params.id, req.body)
-        .then(() => res.json({ message: 'Product updated' }))
-        .catch(next);
+async function update(id, params) {
+    const product = await getProduct(id);
+
+    // validate
+    const nameChanged = params.name&& product.name !== params.name;
+    if (nameChanged && await db.User.findOne({ where: {name: params.name } })) {
+        throw 'Name "' + params.name + '" is already taken';
+    }
+
+    // copy params to user and save
+    Object.assign(product, params);
+    await product.save();
 }
 
-function _delete(req, res, next) {
-    productService.delete(req.params.id)
-        .then(() => res.json({ message: 'Product deleted' }))
-        .catch(next);
+async function _delete(id) {
+    const product = await getProduct(id);
+    await product.destroy();
 }
 
-// schema functions
+// helper functions
 
-function createSchema(req, res, next) {
-    const schema = Joi.object({
-        name: Joi.string().required(),
-        price: Joi.number().required(),
-        quantity: Joi.number().required(),
-        image: Joi.string().required(),
-       
-    });
-    validateRequest(req, next, schema);
-}
-
-function updateSchema(req, res, next) {
-    const schema = Joi.object({
-        name: Joi.string().required(),
-        price: Joi.number().required(),
-        quantity: Joi.number().required(),
-        image: Joi.number().required(),
-    })
-    validateRequest(req, next, schema);
+async function getProduct(id) {
+    const Product =  await db.User.findByPk(id);
+    if (!product) throw 'User not found';
+    return product;
 }
